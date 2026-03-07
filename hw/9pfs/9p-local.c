@@ -337,6 +337,10 @@ static int local_set_mapped_file_attrat(int dirfd, const char *name,
         g_free(meta_path);
         return -1;
     }
+
+    map_fd = fileno(fp);
+    assert(map_fd != -1);
+
     if (credp->fc_uid != -1) {
         uid = credp->fc_uid;
     }

@@ -1,6 +1,6 @@
 project('qemu', ['c'], meson_version: '>=1.5.0',
         default_options: ['warning_level=1', 'c_std=gnu11', 'cpp_std=gnu++11', 'b_colorout=auto',
-                          'b_staticpic=false', 'stdsplit=false', 'optimization=2', 'b_pie=true'],
+                          'b_staticpic=true', 'stdsplit=false', 'optimization=2', 'b_pie=true'],
         version: files('VERSION'))
 
 meson.add_devenv({ 'MESON_BUILD_ROOT' : meson.project_build_root() })
@@ -1052,14 +1052,14 @@ have_xen_pci_passthrough = get_option('xen_pci_passthrough') \
 # below can also be removed.
 glib_req_ver = '>=2.66.0'
 glib_pc = dependency('glib-2.0', version: glib_req_ver, required: true,
-                    method: 'pkg-config')
+                    method: 'pkg-config', static: true)
 glib_cflags = []
 if enable_modules
   gmodule = dependency('gmodule-export-2.0', version: glib_req_ver, required: true,
-                       method: 'pkg-config')
+                       method: 'pkg-config', static: true)
 elif get_option('plugins')
   gmodule = dependency('gmodule-no-export-2.0', version: glib_req_ver, required: true,
-                       method: 'pkg-config')
+                       method: 'pkg-config', static: true)
 else
   gmodule = not_found
 endif
@@ -4240,6 +4240,7 @@ endif
 
 traceable = []
 emulators = {}
+single_binary_libs = []
 foreach target : target_dirs
   config_target = config_target_mak[target]
   target_name = config_target['TARGET_NAME']
@@ -4400,14 +4401,12 @@ foreach target : target_dirs
     execs = [{
       'name': 'qemu-system-' + target_name,
       'win_subsystem': 'console',
-      'sources': files('system/main.c'),
       'dependencies': [sdl]
     }]
     if host_os == 'windows' and (sdl.found() or gtk.found())
       execs += [{
         'name': 'qemu-system-' + target_name + 'w',
         'win_subsystem': 'windows',
-        'sources': files('system/main.c'),
         'dependencies': [sdl]
       }]
     endif
@@ -4434,14 +4433,14 @@ foreach target : target_dirs
       exe_name += '-unsigned'
     endif
 
-    emulator = executable(exe_name, exe['sources'],
+    emulator = shared_library(exe_name,
                install: true,
                c_args: c_args,
                dependencies: arch_deps + exe['dependencies'],
                objects: lib.extract_all_objects(recursive: true),
                link_depends: [block_syms, qemu_syms],
-               link_args: link_args,
-               win_subsystem: exe['win_subsystem'])
+               link_args: link_args)
+    single_binary_libs += emulator
 
     if host_os == 'darwin'
       icon = 'pc-bios/qemu.rsrc'
@@ -4499,7 +4498,7 @@ if xkbcommon.found()
 endif
 
 if have_tools
-  qemu_img = executable('qemu-img', [files('qemu-img.c'), hxdep],
+  qemu_img = shared_library('qemu-img', [files('qemu-img.c'), hxdep],
              link_args: '@block.syms', link_depends: block_syms,
              dependencies: [authz, block, crypto, io, qom, qemuutil], install: true)
   qemu_io = executable('qemu-io', files('qemu-io.c'),
